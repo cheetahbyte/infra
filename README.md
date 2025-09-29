@@ -7,7 +7,7 @@ This repository contains Infrastructure-as-Code (IaC) for deploying a production
 - **IPv6-only Configuration**: Optimized for modern networking with IPv6 support
 - **Minimal Resources**: Uses smallest possible Hetzner Cloud instances (cx22) for cost efficiency
 - **Secure by Default**: Includes firewall configuration, SSH hardening, and fail2ban
-- **Production Ready**: Kubernetes 1.28 with Calico CNI for networking
+- **Production Ready**: Kubernetes 1.33 with Calico CNI for networking
 - **Scalable**: Easy to add/remove worker nodes
 
 ## Architecture
@@ -94,7 +94,7 @@ sudo cat /root/.kube/config
 
 ### Kubernetes Configuration
 
-- **Version**: 1.28 (latest stable)
+- **Version**: 1.33 (latest stable)
 - **CNI**: Calico with IPv6 support
 - **Pod Network**: `192.168.0.0/16`
 - **Service Network**: `10.96.0.0/12`
