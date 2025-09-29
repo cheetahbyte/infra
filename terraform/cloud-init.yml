@@ -24,7 +24,8 @@ packages:
   - python3-pip
 
 # Configure SSH security
-ssh_authorized_keys: []
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDaPrbpE4CofiM7EwrFArEib9nyh6aE6y7rs1BiNuNxh leonhard.breuer@proton.me
 
 # Basic firewall setup (will be managed by Ansible later)
 runcmd:
