@@ -5,7 +5,7 @@ output "control_plane_ipv6" {
 
 output "control_plane_private_ip" {
   description = "Private IP address of the control plane node"
-  value       = hcloud_server.control_plane.network[0].ip
+  value       = one([for network in hcloud_server.control_plane.network : network.ip])
 }
 
 output "worker_ipv6_addresses" {
@@ -15,7 +15,7 @@ output "worker_ipv6_addresses" {
 
 output "worker_private_ips" {
   description = "Private IP addresses of worker nodes"
-  value       = hcloud_server.workers[*].network[0].ip
+  value       = [for worker in hcloud_server.workers : one([for network in worker.network : network.ip])]
 }
 
 output "ssh_private_key_path" {
@@ -29,13 +29,13 @@ output "cluster_info" {
     control_plane = {
       name       = hcloud_server.control_plane.name
       ipv6       = hcloud_server.control_plane.ipv6_address
-      private_ip = hcloud_server.control_plane.network[0].ip
+      private_ip = one([for network in hcloud_server.control_plane.network : network.ip])
     }
     workers = [
       for i, worker in hcloud_server.workers : {
         name       = worker.name
         ipv6       = worker.ipv6_address
-        private_ip = worker.network[0].ip
+        private_ip = one([for network in worker.network : network.ip])
       }
     ]
     ssh_key_path = local_file.private_key.filename
