@@ -1,0 +1,20 @@
+# Example Manual Configuration
+# Copy this file and customize it for your infrastructure
+
+# Control plane node IP (IPv4 or IPv6)
+control_plane_ip: "192.168.1.10"
+
+# Worker node IPs (list format)
+worker_ips:
+  - "192.168.1.11"
+  - "192.168.1.12"
+  - "192.168.1.13"
+
+# SSH configuration
+ssh_key_path: "~/.ssh/id_rsa"
+ssh_user: "root"
+
+# Example usage with this config file:
+# cd ansible
+# ansible-playbook generate-inventory.yml -e @manual-config.yml -e "manual_mode=true"
+# ansible-playbook site.yml
