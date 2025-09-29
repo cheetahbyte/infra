@@ -1,0 +1,29 @@
+---
+all:
+  vars:
+    ansible_user: {{ manual_ssh_user }}
+    ansible_ssh_private_key_file: "{{ manual_ssh_key_path }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    kubernetes_version: "1.33"
+    pod_network_cidr: "192.168.0.0/16"
+    service_cidr: "10.96.0.0/12"
+    
+  children:
+    control_plane:
+      hosts:
+        control-plane:
+          ansible_host: "{{ manual_control_plane_ip }}"
+          node_role: master
+          
+    workers:
+      hosts:
+{% for ip in manual_worker_ips %}
+        worker-{{ loop.index }}:
+          ansible_host: "{{ ip }}"
+          node_role: worker
+{% endfor %}
+    
+    kubernetes:
+      children:
+        control_plane:
+        workers:

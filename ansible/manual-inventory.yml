@@ -1,0 +1,61 @@
+---
+- name: Generate Ansible inventory with manually specified IPs
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_file: "inventory/hosts.yml"
+    # Manual configuration - users can override these variables
+    manual_control_plane_ip: "{{ control_plane_ip | default('') }}"
+    manual_worker_ips: "{{ worker_ips | default([]) }}"
+    manual_ssh_key_path: "{{ ssh_key_path | default('../terraform/ssh_keys/id_rsa') }}"
+    manual_ssh_user: "{{ ssh_user | default('root') }}"
+    
+  tasks:
+    - name: Parse worker IPs if passed as string
+      set_fact:
+        parsed_worker_ips: "{{ manual_worker_ips if manual_worker_ips is iterable and (manual_worker_ips is not string) else manual_worker_ips | from_json if manual_worker_ips is string and manual_worker_ips.startswith('[') else [manual_worker_ips] }}"
+
+    - name: Update manual_worker_ips variable
+      set_fact:
+        manual_worker_ips: "{{ parsed_worker_ips }}"
+      when: parsed_worker_ips is defined
+
+    - name: Validate required variables
+      fail:
+        msg: "control_plane_ip must be provided"
+      when: manual_control_plane_ip == ""
+      
+    - name: Validate worker IPs
+      fail:
+        msg: "At least one worker IP must be provided in worker_ips list"
+      when: manual_worker_ips | length == 0
+      
+    - name: Validate SSH key exists
+      stat:
+        path: "{{ manual_ssh_key_path }}"
+      register: ssh_key_stat
+      
+    - name: Check SSH key file
+      fail:
+        msg: "SSH key file {{ manual_ssh_key_path }} does not exist"
+      when: not ssh_key_stat.stat.exists
+
+    - name: Create inventory directory
+      file:
+        path: inventory
+        state: directory
+
+    - name: Generate manual Ansible inventory
+      template:
+        src: templates/manual-inventory.yml.j2
+        dest: "{{ inventory_file }}"
+        
+    - name: Display inventory summary
+      debug:
+        msg: |
+          Manual inventory generated successfully!
+          Control Plane: {{ manual_control_plane_ip }}
+          Workers: {{ manual_worker_ips | join(', ') }}
+          SSH Key: {{ manual_ssh_key_path }}
+          SSH User: {{ manual_ssh_user }}
+          Inventory file: {{ inventory_file }}

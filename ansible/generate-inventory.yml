@@ -1,33 +1,114 @@
 ---
-- name: Generate Ansible inventory from Terraform outputs
+- name: Generate Ansible inventory from Terraform outputs or manual IPs
   hosts: localhost
   gather_facts: false
   vars:
     terraform_dir: "../terraform"
     inventory_file: "inventory/hosts.yml"
+    # Manual mode variables - can be overridden via extra-vars
+    use_manual_mode: "{{ manual_mode | default(false) }}"
+    manual_control_plane_ip: "{{ control_plane_ip | default('') }}"
+    manual_worker_ips: "{{ worker_ips | default([]) }}"
+    manual_ssh_key_path: "{{ ssh_key_path | default('../terraform/ssh_keys/id_rsa') }}"
+    manual_ssh_user: "{{ ssh_user | default('root') }}"
   
   tasks:
-    - name: Get Terraform outputs
-      command: terraform output -json
-      args:
-        chdir: "{{ terraform_dir }}"
-      register: terraform_outputs
-      changed_when: false
+    - name: Choose mode based on variables
+      block:
+        - name: Check if manual mode is requested
+          set_fact:
+            mode: "manual"
+          when: use_manual_mode | bool or manual_control_plane_ip != ""
+          
+        - name: Default to Terraform mode
+          set_fact:
+            mode: "terraform"
+          when: mode is not defined
 
-    - name: Parse Terraform outputs
-      set_fact:
-        cluster_info: "{{ (terraform_outputs.stdout | from_json).cluster_info.value }}"
+    - name: Manual mode tasks
+      block:
+        - name: Parse worker IPs if passed as string
+          set_fact:
+            parsed_worker_ips: "{{ manual_worker_ips if manual_worker_ips is iterable and (manual_worker_ips is not string) else manual_worker_ips | from_json if manual_worker_ips is string and manual_worker_ips.startswith('[') else [manual_worker_ips] }}"
+          when: mode == "manual"
 
-    - name: Create inventory directory
-      file:
-        path: inventory
-        state: directory
+        - name: Update manual_worker_ips variable
+          set_fact:
+            manual_worker_ips: "{{ parsed_worker_ips }}"
+          when: mode == "manual" and parsed_worker_ips is defined
 
-    - name: Generate Ansible inventory
-      template:
-        src: templates/inventory.yml.j2
-        dest: "{{ inventory_file }}"
-      vars:
-        control_plane: "{{ cluster_info.control_plane }}"
-        workers: "{{ cluster_info.workers }}"
-        ssh_key_path: "{{ cluster_info.ssh_key_path }}"
+        - name: Validate manual mode variables
+          fail:
+            msg: "In manual mode, control_plane_ip must be provided"
+          when: manual_control_plane_ip == ""
+          
+        - name: Validate worker IPs in manual mode
+          fail:
+            msg: "In manual mode, at least one worker IP must be provided in worker_ips list"
+          when: manual_worker_ips | length == 0
+          
+        - name: Validate SSH key exists for manual mode
+          stat:
+            path: "{{ manual_ssh_key_path }}"
+          register: ssh_key_stat
+          
+        - name: Check SSH key file for manual mode
+          fail:
+            msg: "SSH key file {{ manual_ssh_key_path }} does not exist"
+          when: not ssh_key_stat.stat.exists
+
+        - name: Create inventory directory for manual mode
+          file:
+            path: inventory
+            state: directory
+
+        - name: Generate manual Ansible inventory
+          template:
+            src: templates/manual-inventory.yml.j2
+            dest: "{{ inventory_file }}"
+
+        - name: Display manual mode summary
+          debug:
+            msg: |
+              Manual inventory generated successfully!
+              Control Plane: {{ manual_control_plane_ip }}
+              Workers: {{ manual_worker_ips | join(', ') }}
+              SSH Key: {{ manual_ssh_key_path }}
+              SSH User: {{ manual_ssh_user }}
+      when: mode == "manual"
+
+    - name: Terraform mode tasks
+      block:
+        - name: Get Terraform outputs
+          command: terraform output -json
+          args:
+            chdir: "{{ terraform_dir }}"
+          register: terraform_outputs
+          changed_when: false
+
+        - name: Parse Terraform outputs
+          set_fact:
+            cluster_info: "{{ (terraform_outputs.stdout | from_json).cluster_info.value }}"
+
+        - name: Create inventory directory for Terraform mode
+          file:
+            path: inventory
+            state: directory
+
+        - name: Generate Ansible inventory from Terraform
+          template:
+            src: templates/inventory.yml.j2
+            dest: "{{ inventory_file }}"
+          vars:
+            control_plane: "{{ cluster_info.control_plane }}"
+            workers: "{{ cluster_info.workers }}"
+            ssh_key_path: "{{ cluster_info.ssh_key_path }}"
+            
+        - name: Display Terraform mode summary
+          debug:
+            msg: |
+              Terraform inventory generated successfully!
+              Control Plane: {{ cluster_info.control_plane.name }} ({{ cluster_info.control_plane.ipv6 }})
+              Workers: {{ cluster_info.workers | map(attribute='name') | join(', ') }}
+              SSH Key: {{ cluster_info.ssh_key_path }}
+      when: mode == "terraform"

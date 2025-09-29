@@ -4,11 +4,13 @@ This repository contains Infrastructure-as-Code (IaC) for deploying a production
 
 ## Features
 
+- **Multiple Deployment Options**: Use Terraform with Hetzner Cloud or manually specify IPs for existing infrastructure
 - **IPv6-only Configuration**: Optimized for modern networking with IPv6 support
 - **Minimal Resources**: Uses smallest possible Hetzner Cloud instances (cx22) for cost efficiency
 - **Secure by Default**: Includes firewall configuration, SSH hardening, and fail2ban
 - **Production Ready**: Kubernetes 1.33 with Calico CNI for networking
 - **Scalable**: Easy to add/remove worker nodes
+- **Cloud Agnostic**: Manual IP mode works with any cloud provider or bare metal
 
 ## Architecture
 
@@ -26,14 +28,16 @@ This repository contains Infrastructure-as-Code (IaC) for deploying a production
 
 ## Quick Start
 
-### 1. Clone and Setup
+### Option A: Terraform + Hetzner Cloud (Automated)
+
+#### 1. Clone and Setup
 
 ```bash
 git clone <this-repo>
 cd infra
 ```
 
-### 2. Configure Terraform
+#### 2. Configure Terraform
 
 ```bash
 cd terraform
@@ -41,7 +45,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your Hetzner Cloud API token
 ```
 
-### 3. Deploy Infrastructure
+#### 3. Deploy Infrastructure
 
 ```bash
 # Initialize Terraform
@@ -54,7 +58,7 @@ terraform plan
 terraform apply
 ```
 
-### 4. Install Kubernetes
+#### 4. Install Kubernetes
 
 ```bash
 cd ../ansible
@@ -68,6 +72,39 @@ ansible-playbook generate-inventory.yml
 # Deploy Kubernetes
 ansible-playbook site.yml
 ```
+
+### Option B: Manual IP Specification (Existing Infrastructure)
+
+If you already have servers or want to use a different cloud provider:
+
+#### 1. Clone and Setup
+
+```bash
+git clone <this-repo>
+cd infra
+```
+
+#### 2. Deploy with Manual IPs
+
+```bash
+# Deploy with your existing server IPs
+./deploy-manual.sh --control-plane-ip YOUR_CONTROL_PLANE_IP --worker-ips WORKER1_IP,WORKER2_IP
+
+# Example with IPv6
+./deploy-manual.sh --control-plane-ip 2001:db8::1 --worker-ips 2001:db8::2,2001:db8::3
+
+# Example with IPv4
+./deploy-manual.sh --control-plane-ip 192.168.1.10 --worker-ips 192.168.1.11,192.168.1.12
+
+# Alternative: Use a configuration file
+cd ansible
+cp manual-config.yml.example my-config.yml
+# Edit my-config.yml with your IPs and settings
+ansible-playbook generate-inventory.yml -e @my-config.yml -e "manual_mode=true"
+ansible-playbook site.yml
+```
+
+For detailed manual deployment instructions, see [docs/manual-deployment.md](docs/manual-deployment.md).
 
 ### 5. Access Your Cluster
 
