@@ -1,0 +1,39 @@
+---
+- name: Wait for control plane to be ready
+  wait_for:
+    port: 6443
+    host: "{{ hostvars[groups['control_plane'][0]]['private_ip'] }}"
+    timeout: 300
+
+- name: Get join command from control plane
+  slurp:
+    src: /tmp/join_command.sh
+  register: join_command_content
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Decode join command
+  set_fact:
+    join_command: "{{ join_command_content.content | b64decode | trim }}"
+
+- name: Check if node is already in cluster
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: node_joined
+
+- name: Join node to cluster
+  command: "{{ join_command }} --node-name={{ inventory_hostname }}"
+  when: not node_joined.stat.exists
+
+- name: Label worker node
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Node
+      metadata:
+        name: "{{ inventory_hostname }}"
+        labels:
+          node-role.kubernetes.io/worker: ""
+    kubeconfig: /root/.kube/config
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
