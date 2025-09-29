@@ -1,0 +1,33 @@
+---
+- name: Generate Ansible inventory from Terraform outputs
+  hosts: localhost
+  gather_facts: false
+  vars:
+    terraform_dir: "../terraform"
+    inventory_file: "inventory/hosts.yml"
+  
+  tasks:
+    - name: Get Terraform outputs
+      command: terraform output -json
+      args:
+        chdir: "{{ terraform_dir }}"
+      register: terraform_outputs
+      changed_when: false
+
+    - name: Parse Terraform outputs
+      set_fact:
+        cluster_info: "{{ (terraform_outputs.stdout | from_json).cluster_info.value }}"
+
+    - name: Create inventory directory
+      file:
+        path: inventory
+        state: directory
+
+    - name: Generate Ansible inventory
+      template:
+        src: templates/inventory.yml.j2
+        dest: "{{ inventory_file }}"
+      vars:
+        control_plane: "{{ cluster_info.control_plane }}"
+        workers: "{{ cluster_info.workers }}"
+        ssh_key_path: "{{ cluster_info.ssh_key_path }}"

@@ -1,0 +1,65 @@
+#cloud-config
+hostname: ${hostname}
+manage_etc_hosts: true
+
+# IPv6 configuration
+bootcmd:
+  - echo 'net.ipv6.conf.all.forwarding=1' >> /etc/sysctl.conf
+  - echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+  - sysctl -p
+
+# Update system and install basic packages
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - ufw
+  - fail2ban
+  - python3
+  - python3-pip
+
+# Configure SSH security
+ssh_authorized_keys: []
+
+# Basic firewall setup (will be managed by Ansible later)
+runcmd:
+  - systemctl enable fail2ban
+  - systemctl start fail2ban
+  # Enable IPv6 forwarding immediately
+  - sysctl -w net.ipv6.conf.all.forwarding=1
+  - sysctl -w net.ipv4.ip_forward=1
+  # Disable swap (required for Kubernetes)
+  - swapoff -a
+  - sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  # Configure kernel modules for Kubernetes
+  - modprobe br_netfilter
+  - modprobe overlay
+  - echo 'br_netfilter' >> /etc/modules-load.d/kubernetes.conf
+  - echo 'overlay' >> /etc/modules-load.d/kubernetes.conf
+  # Set sysctl parameters for Kubernetes
+  - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.d/kubernetes.conf
+  - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.d/kubernetes.conf
+  - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.d/kubernetes.conf
+  - echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.d/kubernetes.conf
+  - sysctl --system
+
+write_files:
+  - path: /etc/modules-load.d/kubernetes.conf
+    content: |
+      br_netfilter
+      overlay
+  - path: /etc/sysctl.d/kubernetes.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+
+power_state:
+  mode: reboot
+  condition: True
